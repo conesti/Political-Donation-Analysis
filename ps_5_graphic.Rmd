@@ -1,0 +1,119 @@
+---
+title: 'Problem Set #5 Graphic'
+author: "Chris Onesti"
+date: "March 6, 2019"
+output: html_document
+---
+
+I take data from the FEC website and create a table which displays the total amount donated to each political party by Harvard employees in 2005-2006.
+
+```{r setup, include=FALSE, echo=FALSE, warning = FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+#Load readxl library
+library(readxl)
+#Load janitor library to reformat variable names
+library(janitor)
+#Load tidyvers library for general data help
+library(tidyverse)
+#Load dplyr library for general data help
+library(dplyr)
+#Load stringr library to help with string manipulations
+library(stringr)
+#Load gt library to help format tables
+library(gt)
+#Load readr library to help with reading files
+library(readr)
+#Load lubridate library to help parse dates
+library(lubridate)
+```
+
+
+
+
+```{r graph, fig.align = "center", echo=FALSE, warning = FALSE}
+#Read in variable from the Rds file 
+harvard_donors <- readRDS("harvard_donors.Rds") %>% filter(party %in% c("DEM", "REP"))
+#Next the party variable is converted from a chr to a factor
+harvard_donors$party <- as.factor(harvard_donors$party)
+#One can then rename the levels in the factor for more clarity
+levels(harvard_donors$party) <- c("Democrat", "Republican")
+
+
+#Beginning with the Harvard donors data set
+harvard_donors%>% 
+  #One first groups the data by date since this is essentially a time analysis
+  group_by(date) %>%
+  #The next step is to filter out entries that have an NA in the party variable
+  filter(!is.na(party)) %>%
+  #Next, one filters out negative or 0 amounts for the donations
+  filter(amount > 0) %>% 
+  #One performs a similar NA filter for the date variable
+  filter(!is.na(date)) %>%
+  #Next, one can build the plot plotting the amount given per date for each party.  The data is also colored by party for clarity
+  ggplot(aes(x = date, y = amount, fill = party)) +
+  #Using a geom_col because a point graph seemed difficult to read and a line graph looked too zig-zagged
+  geom_col() + 
+  #Divides the chart into one chart for each party
+  facet_wrap(~party) + 
+  #Next one adds labels to make the data more understandable
+  labs(caption = "Source: FEC Website", 
+       #The title explaines what the data is and summarizes conclusion
+       title = "Frequency of Political Donations by Harvard Affiliates", 
+       #The subtitle elaborates on the title
+       subtitle = "Democrats heavily favored in size and frequency of donations", 
+       #The x label is extended to make more sense:
+       x = "Date of Donations", 
+       #As is the y label:
+       y = "Total Amount Given ($)") + 
+  #Next, the legend is renamed for clarity 
+  guides(fill = guide_legend(title = "Political Party")) + 
+  #Also for clarity, parties are given their political colors and the y axis limit is set to a more reasonable level
+  scale_fill_manual(values = c("blue", "red")) + ylim(0, 4500)
+```
+
+
+## Appendix
+
+
+```{r appendix, eval = FALSE}
+#Read in variable from the Rds file 
+harvard_donors <- readRDS("harvard_donors.Rds") %>% filter(party %in% c("DEM", "REP"))
+#Next the party variable is converted from a chr to a factor
+harvard_donors$party <- as.factor(harvard_donors$party)
+#One can then rename the levels in the factor for more clarity
+levels(harvard_donors$party) <- c("Democrat", "Republican")
+
+
+#Beginning with the Harvard donors data set
+harvard_donors%>% 
+  #One first groups the data by date since this is essentially a time analysis
+  group_by(date) %>%
+  #The next step is to filter out entries that have an NA in the party variable
+  filter(!is.na(party)) %>%
+  #Next, one filters out negative or 0 amounts for the donations
+  filter(amount > 0) %>% 
+  #One performs a similar NA filter for the date variable
+  filter(!is.na(date)) %>%
+  #Next, one can build the plot plotting the amount given per date for each party.  The data is also colored by party for clarity
+  ggplot(aes(x = date, y = amount, fill = party)) +
+  #Using a geom_col because a point graph seemed difficult to read and a line graph looked too zig-zagged
+  geom_col() + 
+  #Divides the chart into one chart for each party
+  facet_wrap(~party) + 
+  #Next one adds labels to make the data more understandable
+  labs(caption = "Source: FEC Website", 
+       #The title explaines what the data is and summarizes conclusion
+       title = "Frequency of Political Donations by Harvard Affiliates", 
+       #The subtitle elaborates on the title
+       subtitle = "Democrats heavily favored in size and frequency of donations", 
+       #The x label is extended to make more sense:
+       x = "Date of Donations", 
+       #As is the y label:
+       y = "Total Amount Given ($)") + 
+  #Next, the legend is renamed for clarity 
+  guides(fill = guide_legend(title = "Political Party")) + 
+  #Also for clarity, parties are given their political colors and the y axis limit is set to a more reasonable level
+  scale_fill_manual(values = c("blue", "red")) + ylim(0, 4500)
+```
+
