@@ -1,0 +1,330 @@
+---
+title: 'Political Donation Analysis'
+author: "Chris Onesti"
+date: "March 5, 2019"
+output: html_document
+---
+
+```{r setup, include = FALSE, echo = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Load readxl library
+
+library(readxl)
+
+#Load janitor library to reformat variable names
+
+library(janitor)
+
+#Load tidyvers library for general data help
+
+library(tidyverse)
+
+#Load dplyr library for general data help
+
+library(dplyr)
+
+#Load stringr library to help with string manipulations
+
+library(stringr)
+
+#Load gt library to help format tables
+
+library(gt)
+
+#Load readr library to help with reading files
+
+library(readr)
+
+#Load lubridate library to help parse dates
+
+library(lubridate)
+```
+
+```{r cache = TRUE, echo = FALSE, warning = FALSE, message = FALSE}
+#Through cache settings we allow knitting to pull from already-loaded data
+
+#Download the FEC candidate data saving to a generic file name
+download.file(url = "https://www.fec.gov/files/bulk-downloads/2006/weball06.zip",
+             destfile = "file.zip",
+             mode = "wb")
+
+#Read this data into a variable called "candidates", which will make it easier to access later
+candidates <- read_delim("file.zip", delim = "|", col_names = FALSE, escape_double = FALSE) %>% 
+  transmute(cand_id = X1, cand_name = X2, party = X5, cash = X11, cand_state = X19)
+
+#Repeat the same process with the committees data from the FEC website
+download.file(url = "https://www.fec.gov/files/bulk-downloads/2006/cm06.zip",
+              destfile = "file2.zip",
+              mode = "wb")
+
+#Repeat variable naming to for committees as well  
+committees <- read_delim("file2.zip", delim = "|", col_names = FALSE, escape_double = FALSE) %>% 
+  transmute(cand_id = X15, cmte_id = X1, cmte_party = X11)
+  
+#Repeat process for donors data in download
+download.file(url = "https://www.fec.gov/files/bulk-downloads/2006/indiv06.zip",
+              destfile = "file3.zip",
+              mode = "wb")
+  
+#Repeat variable storage for donors data
+donors <- read_delim("file3.zip", delim = "|", col_names = FALSE, escape_double = FALSE, guess_max = 50000) %>%
+transmute(cmte_id = X1, date = X14, amount = X15, employer = X12, occupation = X13)
+
+#Delete file for candidates data
+fs::file_delete("file.zip")
+#Delete file for committees data
+fs::file_delete("file2.zip")
+#Delete file for donors data
+fs::file_delete("file3.zip")
+
+```
+
+
+## Table 1
+```{r q2, echo = FALSE, message = FALSE, warning = FALSE}
+
+#Begins with the candidates data as used in the first question
+
+candidates %>% 
+  
+  #Mutates the data so that it only retains the five most prominent parties in the party variable and collapses all other parties into an other category
+  
+  mutate(party = fct_collapse(party,
+                              
+                        #Democrat values are collected from the following array (Note this includes one additional listing which is the DFL or Democratic party Minnesota satellite branch :
+                        
+                         Democrat = c("DEM","DFL", "Dem", "dem"),
+                        
+                        #Republican values are collected from the following array:
+                        
+                         Republican = c("REP", "Rep", "rep"),
+                        
+                        #Independent values are collected from the following array:
+                        
+                         Independent = c("IND"),
+                        
+                        #Libertarian values are collected from the following array:
+                        
+                         Libertarian = c("LIB"),
+                        
+                        #All other values are labeled "OTH"
+                        
+                         Other = c("OTH"))) %>%
+  
+  #This groups the data by parties so that then one can perform functions at the party level
+  
+  group_by(party) %>% 
+  
+  #The functions to undertake begin with summing the total cash that the party has
+  
+  summarize(party_cash = sum(cash)) %>%
+  
+  #Next the data is arranged by this counted cash value
+  
+  arrange(desc(party_cash)) %>%
+  
+  #Next, one takes only the first five cash values
+  
+  slice(1:5) %>% 
+  
+  #Makes a nicely formatted table
+  
+  gt() %>% 
+  
+  #Set title and subtitle to describe the data
+  
+  tab_header(title = "Cash by Political Party", subtitle = "Democrats the Wealthiest Party") %>%
+  
+  #Labels the columns
+  
+  cols_label(party = "Party", party_cash = "Party Cash") %>% 
+  
+  #This converts the numbers into a more visually familiar format with dollar signs to indicate money
+  
+  fmt_currency(columns = vars(party_cash), currency = "USD") %>% 
+  
+  #Adds a source tab so people know where the data was taken from
+  
+  tab_source_note("Source: FEC Website")
+
+```
+
+## Table 2
+
+```{r q3, echo = FALSE, message = FALSE, warning = FALSE}
+
+#Defining this other veriable to a be a form of catch all that includes the parties that are not the main political parties (Note: this follows the problem set suggestion of there being 3 levels for each party)
+
+other <- c("PAC", "PAF", "PFD", "R", "REF", "SOC", "SWP", "TX", "UNK", "BHP", "CIT", "CON", "CRV", "CST", "d", "DFL", "FRE", "GRE", "IND", "LIB", "NNE", "NON", "NPA", "OTH") 
+
+  #One begins with committee data which is taken from the first chunk of code
+
+  committees %>%
+    
+  #One performs a similar mutation as the first data clean to consolidate party labels
+    
+  mutate(party = fct_collapse(cmte_party,
+                              
+                              #The Democrat label is composed of three sub-labels
+                              
+                              Democrat = c("DEM", "Dem", "dem"),
+                              
+                              #The Republican label omposed of three sub-labels
+                              
+                              Republican = c("REP", "Rep", "rep"),
+                              
+                              #The Other label takes in all other sub-levels
+                              
+                              Other = other)) %>% 
+    
+  #Again one filters NA values in the party variable
+    
+  filter(!is.na(party)) %>% 
+    
+  #Releveling the factor for party reorders the levels in decreasing order by quantity
+    
+  mutate(party = fct_relevel(party, levels = c("Democrat", "Republican", "Other"))) %>%
+    
+  #This arranges the data by party
+    
+  arrange(party) %>%
+    
+  #This groups the data by party
+    
+  group_by(party) %>% 
+    
+  #Using a summary function, one can count the distinct committees and candidates for each party
+    
+  summarize(committee_count = n_distinct(cmte_id), cand_count = n_distinct(cand_id)) %>% 
+    
+  #The gt package is deployed to make a nice table
+    
+  gt() %>% 
+    
+  #Here the header is labeled so that the readers better understand the data
+    
+  tab_header(title = "Number of Politicians and Committees by Party", subtitle = "Democrats hold more committees and candidates") %>%
+    
+  #The columns are then labeled so that they display the party, committee, and candidate counts
+    
+  cols_label(party = "Party", committee_count = "Committees", cand_count = "Candidates") %>% 
+    
+  #Adding a caption to label data source
+    
+  tab_source_note("Source: FEC Website")
+```
+
+
+## Table 3
+
+```{r q4, echo = FALSE, message = FALSE, warning = FALSE}
+#Question 4
+
+#Copying the data variable allows for changing of a variable without affecting the original dataset
+
+donors2 <- donors
+
+#This converts the intergerlike date format into the proper date format which is easier to work with
+
+donors2$date <- mdy(donors2$date)
+
+#One begins with the copied and modified data
+
+ donors2 %>%
+   
+  #The next step is to peform a left join with the committees data by committee id since that is a shared variable
+   
+  left_join(committees, by = "cmte_id") %>%
+   
+  #Then one can join this joint data set to the candidate dataset through the candidate id variable which is now a part of both datasets
+   
+  left_join(candidates, by = "cand_id")  %>% 
+   
+  #The next step is to filter out rows such that only Harvard employees remain
+   
+  filter(employer == "HARVARD UNIVERSITY") %>%
+   
+  #Within this dataset, one filters so that there are no NA entries for the party variable
+   
+  filter(!is.na(party)) %>%
+   
+  #Next, one can filter out rows so that only the Harvard professors remain
+   
+  filter(str_detect(occupation, "PROFESSOR")) %>%
+   
+  #This keeps only entries with positive donations
+   
+  filter(amount > 0) %>% 
+   
+  #The next step is to group the data by quarter using the cut function which creates quarter levels and inserts the dates into the appropriate quarters
+   
+  mutate(quarter = cut(date, breaks = "quarter")) %>% 
+   
+  #This groups the data by party and quarter so it can be divided and analyzed
+   
+  group_by(quarter, party) %>% 
+   
+  #Next one counts the number of rows or donations made in each quarter by each party
+   
+  count() %>% 
+   
+  #One uses the spread key to make the chart easier to read and so Democrats and Republican donors each have their own category
+   
+  spread(key = "party", value = "n", fill = 0) %>%
+   
+  #Next the data is ungrouped to not distort the gt formatting
+   
+  ungroup() %>%
+   
+  #The gt package is deployed to make a more nicely formatted table
+   
+  gt() %>% 
+   
+   #This function sets the title and subtitle to describe the data
+   
+  tab_header(title = "Donations from Harvard Professors", subtitle = "Harvard Professors tend to support Democratic Candidates financially") %>%
+   
+   #The columns are then labeled so that they display the party, and donations per quarter
+   
+  cols_label(quarter = "Quarter", DEM = "Democratic Donations", REP = "Republican Donations") %>% 
+   
+   #The caption function adds a message indicating the data's source at the bottom of the table
+   
+  tab_source_note("Source: FEC Website")
+  
+ #Preparing the data for export, one makes a copy so that it does not overwrite the original dataset
+ 
+  donors3 <- donors2 %>%
+    
+  #As before, joins with committee data
+    
+  left_join(committees, by = "cmte_id") %>% 
+    
+  #Then joins combined dataset to the candidate dataset
+    
+  left_join(candidates, by = "cand_id") %>% 
+    
+  #Next one only keeps Harvard employees
+    
+  filter(employer == "HARVARD UNIVERSITY")
+  
+  #Writes the dataset to an RDS file which can then be read into other Rmd files
+  
+  harvard_donors <- write_rds(donors3, "harvard_donors.Rds")
+    
+```
+
+
+## Graph
+
+
+http://rpubs.com/thrinacia/harvard-political-donations-by-party-over-time
+
+
+## Colleagues
+Main collaborators: Seeam Noor
+
+Other collaborators: Mike Silva, Beau, others
+
+Attended Charlie and Dillon's Study Halls
